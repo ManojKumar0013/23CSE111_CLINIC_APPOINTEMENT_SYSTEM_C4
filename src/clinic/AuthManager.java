@@ -22,7 +22,7 @@ public class AuthManager {
 
         Map<String, String[]> raw = FileManager.loadUsers();
 
-        // 🔥 normalize usernames to lowercase
+        // normalize usernames to lowercase
         for (String key : raw.keySet()) {
             users.put(key.toLowerCase(), raw.get(key));
         }
@@ -41,7 +41,7 @@ public class AuthManager {
     public boolean signup(String username, String password, String role,
                           String name, String phone, int age, String extra) {
 
-        username = username.toLowerCase(); // 🔥 prevent duplicates
+        username = username.toLowerCase(); 
         role = role.toUpperCase();
 
         if (users.containsKey(username)) {
@@ -93,7 +93,6 @@ public class AuthManager {
             return false;
         }
 
-        // 🔥 Save user
         FileManager.saveUser(username, password, role, userId);
 
         loadUsers();
@@ -103,7 +102,7 @@ public class AuthManager {
     // ================= LOGIN =================
     public boolean login(String username, String password) {
 
-        username = username.toLowerCase(); // 🔥 case-insensitive login
+        username = username.toLowerCase(); 
 
         if (!users.containsKey(username)) {
             System.out.println("User not found.");

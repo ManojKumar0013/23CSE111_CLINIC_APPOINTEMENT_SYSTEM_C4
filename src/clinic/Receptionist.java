@@ -1,16 +1,5 @@
 package clinic;
 
-/*
- * ============================================================
- * RECEPTIONIST CLASS (FINAL STABLE VERSION)
- * ============================================================
- * Features:
- * - Booking support
- * - Cancellation support
- * - Daily report generation
- * - Clean output
- * ============================================================
- */
 
 public class Receptionist {
 

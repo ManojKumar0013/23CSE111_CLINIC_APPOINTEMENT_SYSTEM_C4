@@ -103,7 +103,7 @@ public class Patient {
 
             appointmentIds.remove(appointmentID);
 
-            // 🔥 UPDATE FILE STATUS
+            //  UPDATE FILE STATUS
             FileManager.updateAppointmentStatus(
                     appointmentID,
                     "CANCELLED"

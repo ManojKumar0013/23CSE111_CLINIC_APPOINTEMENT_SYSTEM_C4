@@ -46,7 +46,7 @@ public class Schedule {
         this.bookedSlots = new HashSet<>();
 
         initializeDefaultSchedule();
-        loadBookedSlotsFromFile(); // 🔥 CRITICAL FIX
+        loadBookedSlotsFromFile(); 
     }
 
     // =====================================================
@@ -63,7 +63,6 @@ public class Schedule {
             String date = a[3];
             String time = a[4];
 
-            // 🔥 Only load this doctor's bookings
             if (did.equals(doctorID)) {
                 bookedSlots.add(date + " " + time);
             }

@@ -50,7 +50,7 @@ public class FileManager {
 
     public static void saveUser(String u, String p, String r, String id) {
 
-        u = u.toLowerCase(); // 🔥 normalize
+        u = u.toLowerCase(); 
 
         if (loadUsers().containsKey(u)) return;
 
@@ -167,7 +167,7 @@ public class FileManager {
     }
 
     // =====================================================
-    // 🔥 UPDATE APPOINTMENT STATUS (NEW FEATURE)
+    //  UPDATE APPOINTMENT STATUS (NEW FEATURE)
     // =====================================================
 
     public static void updateAppointmentStatus(String appointmentID, String newStatus) {
@@ -190,8 +190,8 @@ public class FileManager {
         rewriteFile(APPOINTMENTS, updated);
     }
 
-    // =====================================================
-    // 🔥 REWRITE FILE (UTILITY)
+    // ====================================================
+    //  REWRITE FILE (UTILITY)
     // =====================================================
 
     private static void rewriteFile(String file, List<String> data) {

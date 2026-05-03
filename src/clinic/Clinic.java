@@ -77,7 +77,6 @@ public class Clinic {
                                      String date,
                                      String time) {
 
-        // 🚫 HARD duplicate protection (memory + logic)
         for (Appointment a : appointments.values()) {
 
             if (a.getDoctorID().equals(doctorID) &&
@@ -173,7 +172,7 @@ public class Clinic {
             return;
         }
 
-        // 🔥 SORT BY TIME
+        
         list.sort(Comparator.comparing(Appointment::getTime));
 
         for (Appointment a : list) {
@@ -200,11 +199,11 @@ public class Clinic {
 
         doctors.put(doctor.getDoctorID(), doctor);
 
-        // 🔥 FIXED (NO toString)
+
         FileManager.saveDoctor(
                 doctor.getDoctorID(),
-                doctor.getName(),          // ✅ correct
-                doctor.getSpecialization() // ✅ correct
+                doctor.getName(),          
+                doctor.getSpecialization() 
         );
 
         System.out.println("Doctor added successfully.");

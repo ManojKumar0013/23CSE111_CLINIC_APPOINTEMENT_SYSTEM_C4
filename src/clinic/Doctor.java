@@ -2,16 +2,7 @@ package clinic;
 
 import java.util.*;
 
-/*
- * ============================================================
- * DOCTOR CLASS (FINAL CLEAN VERSION)
- * ============================================================
- * Fixes:
- * - Removed duplicate schedule issue
- * - Added getName()
- * - Clean slot handling
- * ============================================================
- */
+
 
 public class Doctor {
 
@@ -29,7 +20,7 @@ public class Doctor {
         this.name = name;
         this.specialization = spec;
 
-        this.schedule = new Schedule(id); // ✅ already initializes schedule
+        this.schedule = new Schedule(id); 
         this.appointmentIds = new ArrayList<>();
     }
 
@@ -98,7 +89,7 @@ public class Doctor {
         return specialization;
     }
 
-    public String getName() { // 🔥 FIX ADDED
+    public String getName() { 
         return name;
     }
 
