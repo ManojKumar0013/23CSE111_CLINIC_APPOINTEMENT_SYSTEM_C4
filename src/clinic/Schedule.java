@@ -1,85 +1,154 @@
 package clinic;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
-
-/*
- * ============================================================
- * SCHEDULE CLASS (SYSTEM BACKBONE)
- * ============================================================
- * Responsibilities:
- * - Manage all booking slots
- * - Prevent double booking
- * - Validate availability
- * - Handle reservation and release
- * - Work with Doctor schedules
- * ============================================================
- */
 
 public class Schedule {
 
-    // ================= DATA STRUCTURE =================
-    // doctorId → booked slots (date + time)
-    private Map<String, Set<String>> bookedSlots;
+    private String doctorID;
 
-    // Optional custom slots added dynamically
-    private Map<String, Set<String>> customSlots;
+    private Map<DayOfWeek, List<TimeRange>> weeklySchedule;
+    private Set<String> bookedSlots;
+
+    private static final DateTimeFormatter TIME_FMT =
+            DateTimeFormatter.ofPattern("HH:mm");
+
+    // ================= INNER CLASS =================
+    static class TimeRange {
+        LocalTime start;
+        LocalTime end;
+
+        TimeRange(String s, String e) {
+            this.start = LocalTime.parse(s);
+            this.end = LocalTime.parse(e);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof TimeRange)) return false;
+            TimeRange tr = (TimeRange) o;
+            return start.equals(tr.start) && end.equals(tr.end);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(start, end);
+        }
+    }
 
     // ================= CONSTRUCTOR =================
-    public Schedule() {
-        bookedSlots = new HashMap<>();
-        customSlots = new HashMap<>();
+    public Schedule(String doctorID) {
+
+        this.doctorID = doctorID;
+        this.weeklySchedule = new HashMap<>();
+        this.bookedSlots = new HashSet<>();
+
+        initializeDefaultSchedule();
+        loadBookedSlotsFromFile(); // 🔥 CRITICAL FIX
     }
 
     // =====================================================
-    // ================= INITIALIZE =========================
+    // ================= LOAD BOOKED SLOTS ==================
     // =====================================================
 
-    public void addDoctor(Doctor doctor) {
-        bookedSlots.putIfAbsent(doctor.getDoctorId(), new HashSet<>());
-        customSlots.putIfAbsent(doctor.getDoctorId(), new HashSet<>());
+    private void loadBookedSlotsFromFile() {
+
+        Map<String, String[]> data = FileManager.loadAppointments();
+
+        for (String[] a : data.values()) {
+
+            String did = a[2];
+            String date = a[3];
+            String time = a[4];
+
+            // 🔥 Only load this doctor's bookings
+            if (did.equals(doctorID)) {
+                bookedSlots.add(date + " " + time);
+            }
+        }
     }
 
     // =====================================================
-    // ================= CHECK AVAILABILITY =================
+    // ================= DEFAULT SCHEDULE ===================
     // =====================================================
 
-    public boolean checkAvailability(Doctor doctor, String date, String time) {
+    private void initializeDefaultSchedule() {
 
-        String slot = buildSlot(date, time);
+        for (DayOfWeek day : DayOfWeek.values()) {
 
-        // 1. Check doctor's working schedule
-        if (!doctor.isAvailable(date, time)) {
-            return false;
+            if (day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY) {
+
+                addWorkingHours(day, "10:00", "14:00");
+                addWorkingHours(day, "17:00", "19:00");
+            }
         }
-
-        // 2. Check if already booked
-        Set<String> slots = bookedSlots.get(doctor.getDoctorId());
-
-        if (slots != null && slots.contains(slot)) {
-            return false;
-        }
-
-        return true;
     }
 
     // =====================================================
-    // ================= RESERVE SLOT =======================
+    // ================= ADD WORKING HOURS ==================
     // =====================================================
 
-    public boolean reserveSlot(Doctor doctor, String date, String time) {
+    public void addWorkingHours(DayOfWeek day, String start, String end) {
 
-        String slot = buildSlot(date, time);
+        weeklySchedule.putIfAbsent(day, new ArrayList<>());
 
-        bookedSlots.putIfAbsent(doctor.getDoctorId(), new HashSet<>());
-        Set<String> slots = bookedSlots.get(doctor.getDoctorId());
+        TimeRange newRange = new TimeRange(start, end);
 
-        if (slots.contains(slot)) {
+        if (!weeklySchedule.get(day).contains(newRange)) {
+            weeklySchedule.get(day).add(newRange);
+        }
+    }
+
+    // =====================================================
+    // ================= GET AVAILABLE SLOTS ================
+    // =====================================================
+
+    public List<String> getAvailableSlots(String dateStr) {
+
+        Set<String> uniqueSlots = new LinkedHashSet<>();
+
+        LocalDate date = LocalDate.parse(dateStr);
+        DayOfWeek day = date.getDayOfWeek();
+
+        if (!weeklySchedule.containsKey(day)) {
+            return new ArrayList<>();
+        }
+
+        for (TimeRange tr : weeklySchedule.get(day)) {
+
+            LocalTime time = tr.start;
+
+            while (time.isBefore(tr.end)) {
+
+                String formattedTime = time.format(TIME_FMT);
+                String slot = date + " " + formattedTime;
+
+                if (!bookedSlots.contains(slot)) {
+                    uniqueSlots.add(slot);
+                }
+
+                time = time.plusMinutes(30);
+            }
+        }
+
+        return new ArrayList<>(uniqueSlots);
+    }
+
+    // =====================================================
+    // ================= BOOK SLOT ==========================
+    // =====================================================
+
+    public boolean bookSlot(String date, String time) {
+
+        String slot = date + " " + time;
+
+        if (bookedSlots.contains(slot)) {
             return false;
         }
 
-        slots.add(slot);
+        bookedSlots.add(slot);
         return true;
     }
 
@@ -87,145 +156,27 @@ public class Schedule {
     // ================= RELEASE SLOT =======================
     // =====================================================
 
-    public void releaseSlot(Doctor doctor, String date, String time) {
-
-        String slot = buildSlot(date, time);
-
-        Set<String> slots = bookedSlots.get(doctor.getDoctorId());
-
-        if (slots != null) {
-            slots.remove(slot);
-        }
+    public void releaseSlot(String date, String time) {
+        bookedSlots.remove(date + " " + time);
     }
 
     // =====================================================
-    // ================= CUSTOM SLOT ========================
+    // ================= SHOW AVAILABLE =====================
     // =====================================================
 
-    public void addCustomSlot(Doctor doctor, String date, String time) {
+    public void showAvailableSlots(String date) {
 
-        String slot = buildSlot(date, time);
-
-        customSlots.putIfAbsent(doctor.getDoctorId(), new HashSet<>());
-        customSlots.get(doctor.getDoctorId()).add(slot);
-
-        System.out.println("Custom slot added: " + slot);
-    }
-
-    public boolean isCustomSlotAvailable(Doctor doctor, String date, String time) {
-
-        String slot = buildSlot(date, time);
-
-        Set<String> slots = customSlots.get(doctor.getDoctorId());
-
-        return slots != null && slots.contains(slot);
-    }
-
-    // =====================================================
-    // ================= PRINT AVAILABLE ====================
-    // =====================================================
-
-    public void printAvailableSlots(Doctor doctor, String date) {
+        List<String> slots = getAvailableSlots(date);
 
         System.out.println("\n===== AVAILABLE SLOTS =====");
-        System.out.println("Doctor: " + doctor.getName());
-        System.out.println("Date: " + date);
 
-        boolean found = false;
-
-        // Generate slots (hourly basis)
-        for (int hour = 0; hour < 24; hour++) {
-
-            String time = String.format("%02d:00", hour);
-
-            if (doctor.isAvailable(date, time) &&
-                checkAvailability(doctor, date, time)) {
-
-                System.out.println(time);
-                found = true;
-            }
-        }
-
-        if (!found) {
-            System.out.println("No available slots.");
-        }
-    }
-
-    // =====================================================
-    // ================= UTILITIES ==========================
-    // =====================================================
-
-    private String buildSlot(String date, String time) {
-        return date + " " + time;
-    }
-
-    public int totalBookings(String doctorId) {
-
-        Set<String> slots = bookedSlots.get(doctorId);
-
-        return (slots == null) ? 0 : slots.size();
-    }
-
-    public void printDoctorBookings(String doctorId) {
-
-        System.out.println("\n--- Booked Slots ---");
-
-        Set<String> slots = bookedSlots.get(doctorId);
-
-        if (slots == null || slots.isEmpty()) {
-            System.out.println("No bookings.");
+        if (slots.isEmpty()) {
+            System.out.println("No slots available.");
             return;
         }
 
         for (String s : slots) {
-            System.out.println(s);
-        }
-    }
-
-    public void clearDoctorSchedule(String doctorId) {
-
-        bookedSlots.remove(doctorId);
-        customSlots.remove(doctorId);
-
-        System.out.println("Doctor schedule cleared.");
-    }
-
-    // =====================================================
-    // ================= VALIDATION =========================
-    // =====================================================
-
-    public boolean isValidDateTime(String date, String time) {
-
-        try {
-            LocalDate.parse(date);
-            LocalTime.parse(time);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    // =====================================================
-    // ================= DEBUG ==============================
-    // =====================================================
-
-    public void debug() {
-
-        System.out.println("\n[SCHEDULE DEBUG]");
-        System.out.println("Doctors tracked: " + bookedSlots.size());
-    }
-
-    // =====================================================
-    // ================= SUMMARY ============================
-    // =====================================================
-
-    public void printSummary() {
-
-        System.out.println("\n===== SCHEDULE SUMMARY =====");
-
-        for (String doctorId : bookedSlots.keySet()) {
-            System.out.println("Doctor: " + doctorId +
-                    " | Bookings: " + totalBookings(doctorId));
+            System.out.println("👉 " + s);
         }
     }
 }

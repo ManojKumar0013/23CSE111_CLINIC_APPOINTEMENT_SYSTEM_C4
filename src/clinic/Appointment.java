@@ -1,259 +1,148 @@
 package clinic;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
-import java.util.*;
-
-/*
- * ============================================================
- * APPOINTMENT ENTITY (CORE DOMAIN OBJECT)
- * ============================================================
- * Responsibilities:
- * - Represent a booking between Patient and Doctor
- * - Maintain lifecycle: PENDING → CONFIRMED → CANCELLED
- * - Validate date/time formats
- * - Provide audit trail (history logs)
- * - Provide formatted output for console/UI
- * - Support persistence (ID setter)
- * ============================================================
- */
 
 public class Appointment {
 
-    // ================= ENUM: STATUS =================
-    public enum Status {
-        PENDING,
-        CONFIRMED,
-        CANCELLED
-    }
+    private String appointmentID;
+    private String patientID;
+    private String doctorID;
 
-    // ================= FIELDS =================
-    private String appointmentId;
+    private String date;
+    private String time;
 
-    private Patient patient;
-    private Doctor doctor;
+    private String status;
+    private LocalDateTime createdTime;
 
-    private String date; // YYYY-MM-DD
-    private String time; // HH:MM
+    // =====================================================
+    // ================= NEW BOOKING ========================
+    // =====================================================
+    public Appointment(String patientID,
+                       String doctorID,
+                       String date,
+                       String time) {
 
-    private Status status;
+        if (!isValidDateTime(date, time)) {
+            throw new IllegalArgumentException("Invalid date or time format.");
+        }
 
-    private LocalDate createdDate;
-    private LocalTime createdTime;
-
-    // Audit trail logs
-    private List<String> historyLogs;
-
-    // ================= CONSTRUCTOR =================
-    public Appointment(Patient patient, Doctor doctor, String date, String time) {
-
-        this.appointmentId = generateAppointmentId();
-        this.patient = patient;
-        this.doctor = doctor;
-
+        this.appointmentID = FileManager.generateAppointmentId();
+        this.patientID = patientID;
+        this.doctorID = doctorID;
         this.date = date;
         this.time = time;
 
-        this.status = Status.PENDING;
-
-        this.createdDate = LocalDate.now();
-        this.createdTime = LocalTime.now();
-
-        this.historyLogs = new ArrayList<>();
-
-        log("Appointment created.");
-        validate();
+        this.status = "PENDING";
+        this.createdTime = LocalDateTime.now();
     }
 
-    // ================= ID GENERATION =================
-    private String generateAppointmentId() {
-        return "APT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    // =====================================================
+    // ================= LOAD FROM FILE =====================
+    // =====================================================
+    public Appointment(String id,
+                       String patientID,
+                       String doctorID,
+                       String date,
+                       String time,
+                       String status) {
+
+        this.appointmentID = id;
+        this.patientID = patientID;
+        this.doctorID = doctorID;
+        this.date = date;
+        this.time = time;
+        this.status = status;
+        this.createdTime = LocalDateTime.now();
     }
 
-    // ================= VALIDATION =================
-    private void validate() {
+    // =====================================================
+    // ================= SAVE ===============================
+    // =====================================================
+    public void saveToFile() {
 
-        if (patient == null)
-            throw new IllegalArgumentException("Patient cannot be null");
-
-        if (doctor == null)
-            throw new IllegalArgumentException("Doctor cannot be null");
-
-        if (!isValidDate(date))
-            throw new IllegalArgumentException("Invalid date format");
-
-        if (!isValidTime(time))
-            throw new IllegalArgumentException("Invalid time format");
+        FileManager.saveAppointment(
+                appointmentID,
+                patientID,
+                doctorID,
+                date,
+                time,
+                status
+        );
     }
 
-    private boolean isValidDate(String date) {
-        try {
-            LocalDate.parse(date);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+    // =====================================================
+    // ================= STATUS CONTROL =====================
+    // =====================================================
+    public void confirmAppointment() {
+
+        if (!status.equals("PENDING")) return;
+
+        this.status = "CONFIRMED";
     }
 
-    private boolean isValidTime(String time) {
-        try {
-            LocalTime.parse(time);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+    public void cancelAppointment() {
+
+        if (status.equals("CANCELLED")) return;
+
+        this.status = "CANCELLED";
     }
 
-    // ================= STATUS MANAGEMENT =================
-    public void confirm() {
+    public void completeAppointment() {
 
-        if (status == Status.CANCELLED) {
-            System.out.println("Cannot confirm a cancelled appointment.");
-            return;
-        }
+        if (!status.equals("CONFIRMED")) return;
 
-        this.status = Status.CONFIRMED;
-        log("Appointment confirmed.");
+        this.status = "COMPLETED";
     }
 
-    public void cancel() {
+    public void rescheduleAppointment(String newDate, String newTime) {
 
-        if (status == Status.CANCELLED) {
-            System.out.println("Already cancelled.");
-            return;
-        }
-
-        this.status = Status.CANCELLED;
-        log("Appointment cancelled.");
-    }
-
-    public void reschedule(String newDate, String newTime) {
-
-        if (!isValidDate(newDate) || !isValidTime(newTime)) {
+        if (!isValidDateTime(newDate, newTime)) {
             System.out.println("Invalid new date/time.");
             return;
         }
 
-        log("Rescheduled from " + date + " " + time +
-                " to " + newDate + " " + newTime);
-
         this.date = newDate;
         this.time = newTime;
+        this.status = "RESCHEDULED";
     }
 
-    // ================= HISTORY =================
-    private void log(String message) {
+    // =====================================================
+    // ================= VALIDATION =========================
+    // =====================================================
+    private boolean isValidDateTime(String date, String time) {
 
-        String entry = "[" + LocalDate.now() + " " + LocalTime.now() + "] " + message;
-        historyLogs.add(entry);
-    }
-
-    public void printHistory() {
-
-        System.out.println("\n--- HISTORY (" + appointmentId + ") ---");
-
-        for (String log : historyLogs) {
-            System.out.println(log);
+        try {
+            LocalDateTime.parse(date + "T" + time);
+            return true;
+        } catch (DateTimeParseException e) {
+            return false;
         }
     }
 
-    // ================= DISPLAY =================
-    public void printSummary() {
+    // =====================================================
+    // ================= GETTERS ============================
+    // =====================================================
+    public String getAppointmentID() { return appointmentID; }
+    public String getPatientID() { return patientID; }
+    public String getDoctorID() { return doctorID; }
+    public String getDate() { return date; }
+    public String getTime() { return time; }
+    public String getStatus() { return status; }
 
-        System.out.println("\n----- APPOINTMENT SUMMARY -----");
-        System.out.println("ID      : " + appointmentId);
-        System.out.println("Patient : " + patient.getName());
-        System.out.println("Doctor  : Dr. " + doctor.getName());
-        System.out.println("Date    : " + date);
-        System.out.println("Time    : " + time);
-        System.out.println("Status  : " + status);
-        System.out.println("--------------------------------");
-    }
-
+    // =====================================================
+    // ================= DISPLAY ============================
+    // =====================================================
     @Override
     public String toString() {
 
-        return "\n================ APPOINTMENT =================\n" +
-                "Appointment ID : " + appointmentId + "\n" +
-                "Patient ID     : " + patient.getPatientId() + "\n" +
-                "Patient Name   : " + patient.getName() + "\n" +
-                "Doctor ID      : " + doctor.getDoctorId() + "\n" +
-                "Doctor Name    : Dr. " + doctor.getName() + "\n" +
-                "Specialization : " + doctor.getSpecialization() + "\n" +
-                "Date           : " + date + "\n" +
-                "Time           : " + time + "\n" +
-                "Status         : " + status + "\n" +
-                "Created On     : " + createdDate + " " + createdTime + "\n" +
-                "================================================";
-    }
-
-    // ================= GETTERS =================
-    public String getAppointmentId() {
-        return appointmentId;
-    }
-
-    public Patient getPatient() {
-        return patient;
-    }
-
-    public Doctor getDoctor() {
-        return doctor;
-    }
-
-    public String getDate() {
-        return date;
-    }
-
-    public String getTime() {
-        return time;
-    }
-
-    public String getStatus() {
-        return status.toString();
-    }
-
-    // ================= SETTERS (FOR FILE LOAD) =================
-    public void setAppointmentId(String id) {
-        this.appointmentId = id;
-    }
-
-    public void setStatus(String status) {
-        try {
-            this.status = Status.valueOf(status);
-        } catch (Exception e) {
-            this.status = Status.PENDING;
-        }
-    }
-
-    // ================= EXTRA UTILITY =================
-    public boolean isConfirmed() {
-        return status == Status.CONFIRMED;
-    }
-
-    public boolean isCancelled() {
-        return status == Status.CANCELLED;
-    }
-
-    public boolean belongsToPatient(String patientId) {
-        return patient.getPatientId().equals(patientId);
-    }
-
-    public boolean belongsToDoctor(String doctorId) {
-        return doctor.getDoctorId().equals(doctorId);
-    }
-
-    public boolean isOnDate(String date) {
-        return this.date.equals(date);
-    }
-
-    // ================= DEBUG =================
-    public void debug() {
-
-        System.out.println("\n[DEBUG]");
-        System.out.println("ID=" + appointmentId);
-        System.out.println("Patient=" + patient.getName());
-        System.out.println("Doctor=" + doctor.getName());
-        System.out.println("Status=" + status);
+        return "\n------------------------------------\n" +
+                "ID     : " + appointmentID + "\n" +
+                "Patient: " + patientID + "\n" +
+                "Doctor : " + doctorID + "\n" +
+                "Date   : " + date + "\n" +
+                "Time   : " + time + "\n" +
+                "Status : " + status + "\n" +
+                "------------------------------------";
     }
 }

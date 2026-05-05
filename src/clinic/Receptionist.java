@@ -1,237 +1,101 @@
 package clinic;
 
-import java.util.*;
-
 /*
  * ============================================================
- * RECEPTIONIST CLASS (SYSTEM OPERATOR ROLE)
+ * RECEPTIONIST CLASS (FINAL STABLE VERSION)
  * ============================================================
- * Responsibilities:
- * - View doctors and schedules
- * - Check availability
- * - Generate daily reports
- * - Assist in basic system operations
- * - Acts as an interface between user and Clinic system
+ * Features:
+ * - Booking support
+ * - Cancellation support
+ * - Daily report generation
+ * - Clean output
  * ============================================================
  */
 
 public class Receptionist {
 
-    // ================= BASIC DETAILS =================
+    private String receptionistID;
     private String name;
-    private String employeeId;
+    private String contact;
 
     private Clinic clinic;
 
-    // ================= LOGS =================
-    private List<String> activityLogs;
-
     // ================= CONSTRUCTOR =================
-    public Receptionist(String name, String employeeId, Clinic clinic) {
+    public Receptionist(String id, String name, String contact, Clinic clinic) {
 
+        this.receptionistID = id;
         this.name = name;
-        this.employeeId = employeeId;
+        this.contact = contact;
         this.clinic = clinic;
-
-        this.activityLogs = new ArrayList<>();
     }
 
     // =====================================================
-    // ================= VIEW DOCTORS =======================
+    // ================= BOOK APPOINTMENT ===================
     // =====================================================
 
-    public void viewDoctors() {
+    public void bookAppointment(String patientID,
+                                String doctorID,
+                                String date,
+                                String time) {
 
-        log("Viewed doctors list");
+        System.out.println("\n=================================");
+        System.out.println(" RECEPTIONIST BOOKING PROCESS");
+        System.out.println("=================================");
 
-        System.out.println("\n===== DOCTORS LIST =====");
-        clinic.listDoctors();
-    }
+        Appointment appt = clinic.manageBooking(
+                patientID, doctorID, date, time
+        );
 
-    // =====================================================
-    // ================= CHECK AVAILABILITY =================
-    // =====================================================
-
-    public void checkDoctorAvailability(String doctorId, String date) {
-
-        log("Checked availability for doctor: " + doctorId + " on " + date);
-
-        System.out.println("\n===== CHECK AVAILABILITY =====");
-
-        clinic.showDoctorSlots(doctorId, date);
-    }
-
-    // =====================================================
-    // ================= GENERATE REPORT ====================
-    // =====================================================
-
-    public void generateDailyReport(String date) {
-
-        log("Generated daily report for: " + date);
-
-        System.out.println("\n===== DAILY REPORT =====");
-
-        clinic.generateDailyReport(date);
-    }
-
-    // =====================================================
-    // ================= VIEW SYSTEM STATUS =================
-    // =====================================================
-
-    public void viewSystemSummary() {
-
-        log("Viewed system summary");
-
-        System.out.println("\n===== SYSTEM SUMMARY =====");
-
-        clinic.printSystemSummary();
-    }
-
-    // =====================================================
-    // ================= VIEW ALL APPOINTMENTS ==============
-    // =====================================================
-
-    public void viewAllAppointments() {
-
-        log("Viewed all appointments");
-
-        System.out.println("\n===== ALL APPOINTMENTS =====");
-
-        clinic.printAllAppointments();
-    }
-
-    // =====================================================
-    // ================= SEARCH FEATURES ====================
-    // =====================================================
-
-    public void searchAppointmentsByDate(String date) {
-
-        log("Searched appointments for date: " + date);
-
-        System.out.println("\n===== SEARCH RESULTS =====");
-
-        clinic.generateDailyReport(date);
-    }
-
-    public void searchDoctorSchedule(String doctorId) {
-
-        log("Viewed weekly schedule for doctor: " + doctorId);
-
-        Doctor doc = clinic.getDoctor(doctorId);
-
-        if (doc == null) {
-            System.out.println("Doctor not found.");
-            return;
-        }
-
-        doc.printWeeklySchedule();
-    }
-
-    // =====================================================
-    // ================= ADVANCED FEATURES ==================
-    // =====================================================
-
-    public void printTodayReport() {
-
-        String today = java.time.LocalDate.now().toString();
-
-        log("Generated today's report");
-
-        System.out.println("\n===== TODAY'S REPORT =====");
-
-        clinic.generateDailyReport(today);
-    }
-
-    public void assistPatientBooking(String patientId, String doctorId, String date, String time) {
-
-        log("Assisted booking for patient: " + patientId);
-
-        clinic.bookAppointment(patientId, doctorId, date, time);
-    }
-
-    public void assistPatientCancellation(String appointmentId) {
-
-        log("Assisted cancellation for appointment: " + appointmentId);
-
-        clinic.cancelAppointment(appointmentId);
-    }
-
-    // =====================================================
-    // ================= LOGGING ============================
-    // =====================================================
-
-    private void log(String message) {
-
-        String entry = "[" + new Date() + "] " + message;
-        activityLogs.add(entry);
-    }
-
-    public void printLogs() {
-
-        System.out.println("\n===== RECEPTIONIST LOGS =====");
-
-        if (activityLogs.isEmpty()) {
-            System.out.println("No logs.");
-            return;
-        }
-
-        for (String log : activityLogs) {
-            System.out.println(log);
+        if (appt != null) {
+            System.out.println("✅ Booking successful.");
+        } else {
+            System.out.println("❌ Booking failed (slot taken or invalid).");
         }
     }
 
-    public void clearLogs() {
-        activityLogs.clear();
-        System.out.println("Logs cleared.");
+    // =====================================================
+    // ================= CANCEL APPOINTMENT =================
+    // =====================================================
+
+    public void cancelAppointment(String appointmentID) {
+
+        System.out.println("\n=================================");
+        System.out.println(" RECEPTIONIST CANCELLATION");
+        System.out.println("=================================");
+
+        boolean success = clinic.cancelAppointment(appointmentID);
+
+        if (success) {
+            System.out.println("✅ Appointment cancelled.");
+        } else {
+            System.out.println("❌ Appointment not found.");
+        }
     }
 
     // =====================================================
-    // ================= VALIDATION =========================
+    // ================= DAILY REPORT =======================
     // =====================================================
 
-    public boolean isValidReceptionist() {
+    public void generateDailySchedule(String date) {
 
-        if (name == null || employeeId == null)
-            return false;
+        System.out.println("\n=================================");
+        System.out.println("     DAILY APPOINTMENT REPORT");
+        System.out.println("=================================");
 
-        return true;
+        clinic.generateReports(date);
     }
 
     // =====================================================
-    // ================= DEBUG ==============================
-    // =====================================================
-
-    public void debug() {
-
-        System.out.println("\n[RECEPTIONIST DEBUG]");
-        System.out.println("Name: " + name);
-        System.out.println("Employee ID: " + employeeId);
-        System.out.println("Logs: " + activityLogs.size());
-    }
-
-    // =====================================================
-    // ================= GETTERS ============================
-    // =====================================================
-
-    public String getName() {
-        return name;
-    }
-
-    public String getEmployeeId() {
-        return employeeId;
-    }
-
-    // =====================================================
-    // ================= TO STRING ==========================
+    // ================= DISPLAY ============================
     // =====================================================
 
     @Override
     public String toString() {
 
-        return "\n========== RECEPTIONIST ==========\n" +
-                "Name : " + name + "\n" +
-                "Employee ID : " + employeeId + "\n" +
-                "Total Logs : " + activityLogs.size() + "\n" +
-                "==================================";
+        return "\n====================================\n" +
+                "Receptionist ID : " + receptionistID + "\n" +
+                "Name            : " + name + "\n" +
+                "Contact         : " + contact + "\n" +
+                "====================================";
     }
 }

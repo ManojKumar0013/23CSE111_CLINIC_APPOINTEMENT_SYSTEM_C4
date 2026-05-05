@@ -2,305 +2,239 @@ package clinic;
 
 import java.util.*;
 
-/*
- * =====================================================
- * CLINIC SYSTEM CORE (MAIN CONTROLLER)
- * =====================================================
- * Responsibilities:
- * - Manage Patients, Doctors, Appointments
- * - Enforce Role-Based Access (via AuthManager)
- * - Execute Use-Cases (from UML)
- * - Match Sequence Diagrams
- * =====================================================
- */
-
 public class Clinic {
 
     private String clinicName;
 
-    private Map<String, Patient> patients;
     private Map<String, Doctor> doctors;
+    private Map<String, Patient> patients;
     private Map<String, Appointment> appointments;
 
-    private Schedule schedule;
     private AuthManager auth;
 
-    // ================= CONSTRUCTOR =================
     public Clinic(String clinicName, AuthManager auth) {
+
         this.clinicName = clinicName;
         this.auth = auth;
 
-        patients = new HashMap<>();
         doctors = new HashMap<>();
+        patients = new HashMap<>();
         appointments = new HashMap<>();
-        schedule = new Schedule();
+
+        loadDoctors();
+        loadPatients();
+        loadAppointments();
     }
 
-    // =====================================================
-    // ================= ADMIN FUNCTIONS ====================
-    // =====================================================
+    // ================= LOAD =================
 
-    // Register Patient
-    public void registerPatient(Patient patient) {
+    private void loadDoctors() {
 
-        if (!auth.isAdmin()) {
-            System.out.println("Access Denied: Only ADMIN can register patients.");
-            return;
+        for (String[] d : FileManager.loadDoctors().values()) {
+
+            Doctor doc = new Doctor(d[0], d[1], d[2]);
+            doctors.put(doc.getDoctorID(), doc);
         }
-
-        patients.put(patient.getPatientId(), patient);
-
-        System.out.println("Patient Registered: " + patient.getName());
     }
 
-    // Add Doctor
-    public void addDoctor(Doctor doctor) {
+    private void loadPatients() {
 
-        if (!auth.isAdmin()) {
-            System.out.println("Access Denied: Only ADMIN can add doctors.");
-            return;
+        for (String[] p : FileManager.loadPatients().values()) {
+
+            Patient patient = new Patient(
+                    p[0], p[1], p[2],
+                    Integer.parseInt(p[3]), p[4]
+            );
+
+            patients.put(patient.getPatientID(), patient);
         }
-
-        doctors.put(doctor.getDoctorId(), doctor);
-        schedule.addDoctor(doctor);
-
-        System.out.println("Doctor Added: Dr. " + doctor.getName());
     }
 
-    // =====================================================
-    // ================= PATIENT FUNCTIONS ==================
-    // =====================================================
+    private void loadAppointments() {
 
-    public Appointment bookAppointment(String patientId, String doctorId, String date, String time) {
+        for (Map.Entry<String, String[]> entry :
+                FileManager.loadAppointments().entrySet()) {
 
-        if (!auth.isPatient()) {
-            System.out.println("Access Denied: Only PATIENT can book.");
-            return null;
+            String[] a = entry.getValue();
+
+            Appointment appt = new Appointment(
+                    a[0], // ID
+                    a[1], // patientID
+                    a[2], // doctorID
+                    a[3], // date
+                    a[4], // time
+                    a[5]  // status
+            );
+
+            appointments.put(a[0], appt);
+        }
+    }
+
+    // ================= BOOK =================
+
+    public Appointment manageBooking(String patientID,
+                                     String doctorID,
+                                     String date,
+                                     String time) {
+
+        // 🚫 HARD duplicate protection (memory + logic)
+        for (Appointment a : appointments.values()) {
+
+            if (a.getDoctorID().equals(doctorID) &&
+                a.getDate().equals(date) &&
+                a.getTime().equals(time)) {
+
+                System.out.println("❌ Slot already booked.");
+                return null;
+            }
         }
 
-        Patient patient = patients.get(patientId);
-        Doctor doctor = doctors.get(doctorId);
+        Patient patient = patients.get(patientID);
+        Doctor doctor = doctors.get(doctorID);
 
         if (patient == null || doctor == null) {
             System.out.println("Invalid Patient or Doctor.");
             return null;
         }
 
-        // Step 1: Check Availability (Sequence Diagram)
-        if (!schedule.checkAvailability(doctor, date, time)) {
+        Appointment appt =
+                new Appointment(patientID, doctorID, date, time);
+
+        if (!doctor.acceptAppointment(appt)) {
             System.out.println("Slot not available.");
             return null;
         }
 
-        // Step 2: Create Appointment
-        Appointment appointment = new Appointment(patient, doctor, date, time);
+        appt.confirmAppointment();
 
-        // Step 3: Doctor Accepts
-        if (!doctor.acceptAppointment(appointment)) {
-            System.out.println("Doctor rejected appointment.");
-            return null;
-        }
+        // ✅ SAFE SAVE (FileManager already blocks duplicates)
+        appt.saveToFile();
 
-        // Step 4: Reserve Slot
-        schedule.reserveSlot(doctor, date, time);
+        appointments.put(appt.getAppointmentID(), appt);
 
-        // Step 5: Store
-        appointments.put(appointment.getAppointmentId(), appointment);
+        System.out.println("✅ Appointment booked successfully!");
 
-        System.out.println("Appointment Booked Successfully!");
-        return appointment;
+        return appt;
     }
 
-    // Cancel Appointment
-    public void cancelAppointment(String appointmentId) {
+    // ================= VIEW =================
 
-        if (!auth.isPatient()) {
-            System.out.println("Access Denied: Only PATIENT can cancel.");
-            return;
-        }
-
-        Appointment appt = appointments.get(appointmentId);
-
-        if (appt == null) {
-            System.out.println("Appointment not found.");
-            return;
-        }
-
-        // Sequence Diagram Logic
-        appt.cancel();
-
-        Doctor doctor = appt.getDoctor();
-        doctor.cancelAppointment(appt);
-
-        schedule.releaseSlot(doctor, appt.getDate(), appt.getTime());
-
-        System.out.println("Appointment Cancelled Successfully.");
-    }
-
-    // View Appointments
-    public void viewAppointments(String patientId) {
-
-        if (!auth.isPatient()) {
-            System.out.println("Access Denied.");
-            return;
-        }
-
-        for (Appointment a : appointments.values()) {
-            if (a.getPatient().getPatientId().equals(patientId)) {
-                System.out.println(a);
-            }
-        }
-    }
-
-    // =====================================================
-    // ================= DOCTOR FUNCTIONS ===================
-    // =====================================================
-
-    // Accept Appointment
-    public void acceptAppointment(String appointmentId) {
-
-        if (!auth.isDoctor()) {
-            System.out.println("Access Denied: Only DOCTOR.");
-            return;
-        }
-
-        Appointment appt = appointments.get(appointmentId);
-
-        if (appt == null) {
-            System.out.println("Appointment not found.");
-            return;
-        }
-
-        appt.confirm();
-        System.out.println("Appointment Accepted.");
-    }
-
-    // Update Availability
-    public void updateDoctorAvailability(String doctorId, String date, String time) {
-
-        if (!auth.isDoctor()) {
-            System.out.println("Access Denied.");
-            return;
-        }
-
-        Doctor doctor = doctors.get(doctorId);
-
-        if (doctor == null) {
-            System.out.println("Doctor not found.");
-            return;
-        }
-
-        schedule.addCustomSlot(doctor, date, time);
-
-        System.out.println("Availability Updated.");
-    }
-
-    // View Doctor Appointments
-    public void viewDoctorAppointments(String doctorId) {
-
-        if (!auth.isDoctor()) {
-            System.out.println("Access Denied.");
-            return;
-        }
-
-        for (Appointment a : appointments.values()) {
-            if (a.getDoctor().getDoctorId().equals(doctorId)) {
-                System.out.println(a);
-            }
-        }
-    }
-
-    // =====================================================
-    // ================= RECEPTIONIST =======================
-    // =====================================================
-
-    public void generateDailyReport(String date) {
-
-        if (!auth.isReceptionist()) {
-            System.out.println("Access Denied.");
-            return;
-        }
-
-        System.out.println("\n===== DAILY REPORT =====");
+    public void viewPatientAppointments(String patientID) {
 
         boolean found = false;
 
         for (Appointment a : appointments.values()) {
 
-            if (a.getDate().equals(date)) {
+            if (a.getPatientID().equals(patientID)) {
                 System.out.println(a);
                 found = true;
             }
         }
 
         if (!found) {
-            System.out.println("No appointments.");
+            System.out.println("No appointments found.");
         }
     }
 
-    // =====================================================
-    // ================= GENERAL ============================
-    // =====================================================
+    public void viewDoctorAppointments(String doctorID) {
+
+        boolean found = false;
+
+        for (Appointment a : appointments.values()) {
+
+            if (a.getDoctorID().equals(doctorID)) {
+                System.out.println(a);
+                found = true;
+            }
+        }
+
+        if (!found) {
+            System.out.println("No appointments found.");
+        }
+    }
+
+    // ================= REPORT =================
+
+    public void generateReports(String date) {
+
+        System.out.println("\n===== DAILY REPORT =====");
+
+        List<Appointment> list = new ArrayList<>();
+
+        for (Appointment a : appointments.values()) {
+
+            if (a.getDate().equals(date)) {
+                list.add(a);
+            }
+        }
+
+        if (list.isEmpty()) {
+            System.out.println("No appointments found.");
+            return;
+        }
+
+        // 🔥 SORT BY TIME
+        list.sort(Comparator.comparing(Appointment::getTime));
+
+        for (Appointment a : list) {
+            System.out.println(a);
+        }
+    }
+
+    // ================= HELPERS =================
+
+    public void addPatientToSystem(Patient patient) {
+        patients.put(patient.getPatientID(), patient);
+    }
 
     public void listDoctors() {
 
-        System.out.println("\n--- Doctors ---");
+        System.out.println("\n===== DOCTORS =====");
 
         for (Doctor d : doctors.values()) {
-            System.out.println("ID: " + d.getDoctorId() +
-                    " | Name: Dr. " + d.getName() +
-                    " | Spec: " + d.getSpecialization());
+            System.out.println(d);
         }
     }
 
-    public void showDoctorSlots(String doctorId, String date) {
+    public void addDoctor(Doctor doctor) {
 
-        Doctor doctor = doctors.get(doctorId);
+        doctors.put(doctor.getDoctorID(), doctor);
+
+        // 🔥 FIXED (NO toString)
+        FileManager.saveDoctor(
+                doctor.getDoctorID(),
+                doctor.getName(),          // ✅ correct
+                doctor.getSpecialization() // ✅ correct
+        );
+
+        System.out.println("Doctor added successfully.");
+    }
+
+    public void showDoctorAvailability(String doctorID, String date) {
+
+        Doctor doctor = doctors.get(doctorID);
 
         if (doctor == null) {
             System.out.println("Doctor not found.");
             return;
         }
 
-        schedule.printAvailableSlots(doctor, date);
+        doctor.showAvailability(date);
     }
+    public boolean cancelAppointment(String appointmentID) {
 
-    // =====================================================
-    // ================= DEBUG / UTILITY ====================
-    // =====================================================
+        Appointment appt = appointments.get(appointmentID);
 
-    public void printAllAppointments() {
+        if (appt == null) return false;
 
-        System.out.println("\n=== ALL APPOINTMENTS ===");
+        Doctor doctor = doctors.get(appt.getDoctorID());
 
-        for (Appointment a : appointments.values()) {
-            System.out.println(a);
+        if (doctor != null) {
+            doctor.cancelAppointment(appt);
         }
-    }
 
-    public void printSystemSummary() {
+        appointments.remove(appointmentID);
 
-        System.out.println("\n===== SYSTEM SUMMARY =====");
-
-        System.out.println("Clinic: " + clinicName);
-        System.out.println("Total Patients: " + patients.size());
-        System.out.println("Total Doctors: " + doctors.size());
-        System.out.println("Total Appointments: " + appointments.size());
-    }
-
-    // =====================================================
-    // ================= GETTERS ============================
-    // =====================================================
-
-    public Patient getPatient(String id) {
-        return patients.get(id);
-    }
-
-    public Doctor getDoctor(String id) {
-        return doctors.get(id);
-    }
-
-    public Map<String, Appointment> getAppointments() {
-        return appointments;
+        return true;
     }
 }

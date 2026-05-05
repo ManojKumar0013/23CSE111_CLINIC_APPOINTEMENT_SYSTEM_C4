@@ -2,261 +2,155 @@ package clinic;
 
 import java.util.*;
 
-/*
- * ============================================================
- * PATIENT CLASS (END USER / CLIENT SIDE)
- * ============================================================
- * Responsibilities:
- * - Book appointments
- * - Cancel appointments
- * - View appointments
- * - Maintain personal appointment history
- * - Validate input
- * - Support rescheduling
- * ============================================================
- */
-
 public class Patient {
 
-    // ================= BASIC DETAILS =================
-    private String patientId;
+    private String patientID;
     private String name;
+    private String phone;
     private int age;
-    private String phoneNumber;
+    private String disease;
 
-    // ================= APPOINTMENTS =================
-    private List<Appointment> appointments;
+    private List<String> appointmentIds;
 
     // ================= CONSTRUCTOR =================
-    public Patient(String patientId, String name, int age, String phoneNumber) {
+    public Patient(String patientID,
+                   String name,
+                   String phone,
+                   int age,
+                   String disease) {
 
-        this.patientId = patientId;
+        this.patientID = patientID;
         this.name = name;
+        this.phone = phone;
         this.age = age;
-        this.phoneNumber = phoneNumber;
+        this.disease = disease;
 
-        this.appointments = new ArrayList<>();
+        this.appointmentIds = new ArrayList<>();
+    }
+
+    // =====================================================
+    // ================= LOAD FROM FILE =====================
+    // =====================================================
+
+    public static Patient loadFromFile(String patientID) {
+
+        Map<String, String[]> data = FileManager.loadPatients();
+
+        if (!data.containsKey(patientID)) {
+            return null;
+        }
+
+        String[] p = data.get(patientID);
+
+        return new Patient(
+                p[0],
+                p[1],
+                p[2],
+                Integer.parseInt(p[3]),
+                p[4]
+        );
     }
 
     // =====================================================
     // ================= BOOK APPOINTMENT ===================
     // =====================================================
 
-    public void bookAppointment(Clinic clinic, String doctorId, String date, String time) {
+    public void bookAppointment(Clinic clinic,
+                                String date,
+                                String time) {
 
-        if (!isValidDate(date) || !isValidTime(time)) {
-            System.out.println("Invalid date/time format.");
+        System.out.println("\n===== BOOK APPOINTMENT =====");
+
+        String doctorID = FileManager.getDoctorByDisease(disease);
+
+        if (doctorID == null) {
+            System.out.println("No doctor available for this disease.");
             return;
         }
 
-        Appointment appointment = clinic.bookAppointment(patientId, doctorId, date, time);
+        System.out.println("Assigned Doctor ID: " + doctorID);
 
-        if (appointment != null) {
-            appointments.add(appointment);
-            System.out.println("Appointment booked successfully!");
+        Appointment appt = clinic.manageBooking(
+                patientID,
+                doctorID,
+                date,
+                time
+        );
+
+        if (appt != null) {
+            appointmentIds.add(appt.getAppointmentID());
+            System.out.println("✅ Appointment booked successfully!");
+        }
+    }
+
+    // =====================================================
+    // ================= CANCEL =============================
+    // =====================================================
+
+    public void cancelAppointment(Clinic clinic,
+                                 String appointmentID) {
+
+        System.out.println("\n===== CANCEL APPOINTMENT =====");
+
+        if (appointmentID == null || appointmentID.isEmpty()) {
+            System.out.println("❌ Invalid appointment ID.");
+            return;
+        }
+
+        boolean success = clinic.cancelAppointment(appointmentID);
+
+        if (success) {
+
+            appointmentIds.remove(appointmentID);
+
+            // 🔥 UPDATE FILE STATUS
+            FileManager.updateAppointmentStatus(
+                    appointmentID,
+                    "CANCELLED"
+            );
+
+            System.out.println("✅ Appointment cancelled successfully!");
         } else {
-            System.out.println("Booking failed.");
+            System.out.println("❌ Appointment not found.");
         }
     }
 
     // =====================================================
-    // ================= CANCEL APPOINTMENT =================
+    // ================= VIEW ===============================
     // =====================================================
 
-    public void cancelAppointment(Clinic clinic, String appointmentId) {
-
-        Appointment target = findAppointment(appointmentId);
-
-        if (target == null) {
-            System.out.println("Appointment not found.");
-            return;
-        }
-
-        clinic.cancelAppointment(appointmentId);
-        appointments.remove(target);
-
-        System.out.println("Appointment cancelled successfully.");
-    }
-
-    // =====================================================
-    // ================= VIEW APPOINTMENTS ==================
-    // =====================================================
-
-    public void viewAppointments() {
+    public void viewAppointments(Clinic clinic) {
 
         System.out.println("\n===== MY APPOINTMENTS =====");
 
-        if (appointments.isEmpty()) {
-            System.out.println("No appointments.");
-            return;
-        }
-
-        for (Appointment a : appointments) {
-            System.out.println(a);
-        }
-    }
-
-    public void viewAppointmentsByDate(String date) {
-
-        System.out.println("\nAppointments on " + date);
-
-        boolean found = false;
-
-        for (Appointment a : appointments) {
-            if (a.getDate().equals(date)) {
-                System.out.println(a);
-                found = true;
-            }
-        }
-
-        if (!found) {
-            System.out.println("No appointments found.");
-        }
-    }
-
-    // =====================================================
-    // ================= RESCHEDULE =========================
-    // =====================================================
-
-    public void rescheduleAppointment(Clinic clinic, String appointmentId, String newDate, String newTime) {
-
-        Appointment target = findAppointment(appointmentId);
-
-        if (target == null) {
-            System.out.println("Appointment not found.");
-            return;
-        }
-
-        if (!isValidDate(newDate) || !isValidTime(newTime)) {
-            System.out.println("Invalid new date/time.");
-            return;
-        }
-
-        // Cancel old
-        clinic.cancelAppointment(appointmentId);
-
-        // Book new
-        Appointment newAppt = clinic.bookAppointment(patientId, target.getDoctor().getDoctorId(), newDate, newTime);
-
-        if (newAppt != null) {
-            appointments.remove(target);
-            appointments.add(newAppt);
-
-            System.out.println("Appointment rescheduled successfully.");
-        } else {
-            System.out.println("Reschedule failed.");
-        }
-    }
-
-    // =====================================================
-    // ================= SEARCH =============================
-    // =====================================================
-
-    private Appointment findAppointment(String appointmentId) {
-
-        for (Appointment a : appointments) {
-            if (a.getAppointmentId().equalsIgnoreCase(appointmentId)) {
-                return a;
-            }
-        }
-
-        return null;
-    }
-
-    public boolean hasAppointments() {
-        return !appointments.isEmpty();
-    }
-
-    public int totalAppointments() {
-        return appointments.size();
-    }
-
-    // =====================================================
-    // ================= VALIDATION =========================
-    // =====================================================
-
-    private boolean isValidDate(String date) {
-        return date != null && date.matches("\\d{4}-\\d{2}-\\d{2}");
-    }
-
-    private boolean isValidTime(String time) {
-        return time != null && time.matches("\\d{2}:\\d{2}");
-    }
-
-    public boolean isValidPatient() {
-
-        if (patientId == null || name == null) return false;
-
-        if (age <= 0) return false;
-
-        if (phoneNumber == null || phoneNumber.length() < 10) return false;
-
-        return true;
-    }
-
-    // =====================================================
-    // ================= PROFILE ============================
-    // =====================================================
-
-    public void printProfile() {
-
-        System.out.println("\n===== PATIENT PROFILE =====");
-        System.out.println("ID    : " + patientId);
-        System.out.println("Name  : " + name);
-        System.out.println("Age   : " + age);
-        System.out.println("Phone : " + phoneNumber);
-        System.out.println("Total Appointments: " + appointments.size());
-    }
-
-    // =====================================================
-    // ================= DEBUG ==============================
-    // =====================================================
-
-    public void debug() {
-
-        System.out.println("\n[PATIENT DEBUG]");
-        System.out.println("ID: " + patientId);
-        System.out.println("Name: " + name);
-        System.out.println("Appointments: " + appointments.size());
+        clinic.viewPatientAppointments(patientID);
     }
 
     // =====================================================
     // ================= GETTERS ============================
     // =====================================================
 
-    public String getPatientId() {
-        return patientId;
+    public String getPatientID() {
+        return patientID;
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public int getAge() {
-        return age;
-    }
-
-    public String getPhoneNumber() {
-        return phoneNumber;
-    }
-
-    public List<Appointment> getAppointments() {
-        return appointments;
+    public String getDisease() {
+        return disease;
     }
 
     // =====================================================
-    // ================= TO STRING ==========================
+    // ================= DISPLAY ============================
     // =====================================================
 
     @Override
     public String toString() {
 
-        return "\n========== PATIENT ==========\n" +
-                "ID : " + patientId + "\n" +
-                "Name : " + name + "\n" +
-                "Age : " + age + "\n" +
-                "Phone : " + phoneNumber + "\n" +
-                "Appointments : " + appointments.size() + "\n" +
-                "============================";
+        return "\n====================================\n" +
+                "Patient ID : " + patientID + "\n" +
+                "Name       : " + name + "\n" +
+                "Phone      : " + phone + "\n" +
+                "Age        : " + age + "\n" +
+                "Disease    : " + disease + "\n" +
+                "====================================";
     }
 }
